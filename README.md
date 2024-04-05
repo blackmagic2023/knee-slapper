@@ -25,7 +25,7 @@ This PowerShell script is designed as ransomware for testing analysis. It perfor
 -Clone the repository to your local machine.
 
 ```
-git clone 
+git clone https://github.com/blackmagic2023/knee-slapper.git
 ```
 
 -Open the PowerShell script in a text editor.
